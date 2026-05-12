@@ -1,0 +1,62 @@
+pipeline {
+    agent {
+        node {
+            label 'dockerhost-build-server'
+        }
+    }
+
+    tools {
+        maven 'maven-3.9.6'
+    }
+
+    environment {
+        // Asegúrate de que el ID en Jenkins sea 'devops-dockerhub-token'
+        DOCKERHUB_CREDENTIALS = credentials('devops-dockerhub-token')
+    }
+
+    stages {
+        stage('Packaging') {
+            steps {
+                echo 'Packaging Backend application...'
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Copying jar file') {
+            steps {
+                echo 'Moving JAR file to root...'
+                sh 'mv target/*.jar .'
+            }
+        }
+
+        stage('build image') {
+            steps {
+                echo 'Building Backend Docker image...'
+                // Se añade darkisma/ para poder subirlo a Docker Hub
+                sh 'docker build -t darkisma/campaign-demo:v1 --label campaigndemo-server .'
+            }
+        }
+
+        stage('Docker Hub Login') {
+            steps {
+                echo 'Logging into Docker Hub...'
+                // El comando debe ir en una sola línea
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                echo 'Pushing Backend image to Docker Hub...'
+                sh 'docker push darkisma/campaign-demo:v1'
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning up session...'
+            sh 'docker logout'
+        }
+    }
+}
